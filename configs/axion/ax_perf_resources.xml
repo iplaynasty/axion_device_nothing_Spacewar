@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AxBurstEngine resource map — Nothing Phone 1 (Spacewar)
+  SoC  : Qualcomm Snapdragon 778G+ (SM7325-AE)
+  CPU  : 4x A55 (policy0) + 3x A78 (policy4) + 1x A78 Prime (policy7)
+  GPU  : Adreno 642L (kgsl-3d0)
+  Profile: Balanced Battery + Balanced Performance
+
+  Key battery decisions reflected in defaults:
+  • down_rate_limit_us = 5000  → schedutil downclocks quickly when load drops
+  • task_turbo default  = 0    → only enabled during active boost hints
+  • dirty_writeback     = 3000 → normal background flush cadence
+-->
+<resources>
+
+    <!-- ═══════════════════════════════════════════════
+         CPU MIN FREQUENCY  (scaling floor — kHz)
+         Balanced: keep resting floor low so idle cores
+         drop back quickly after a boost expires.
+         ═══════════════════════════════════════════════ -->
+
+    <resource id="0x0001" name="cpu_min_little"
+              path="/sys/devices/system/cpu/cpufreq/policy0/scaling_min_freq"
+              default="300000" />
+
+    <resource id="0x0002" name="cpu_min_big"
+              path="/sys/devices/system/cpu/cpufreq/policy4/scaling_min_freq"
+              default="400000" />
+
+    <resource id="0x0003" name="cpu_min_prime"
+              path="/sys/devices/system/cpu/cpufreq/policy7/scaling_min_freq"
+              default="400000" />
+
+    <!-- ═══════════════════════════════════════════════
+         CPU MAX FREQUENCY  (scaling ceiling — kHz)
+         Balanced: full ceiling available; thermal XML
+         caps these as temperature rises.
+         ═══════════════════════════════════════════════ -->
+
+    <resource id="0x0004" name="cpu_max_little"
+              path="/sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq"
+              default="1804800" />
+
+    <resource id="0x0005" name="cpu_max_big"
+              path="/sys/devices/system/cpu/cpufreq/policy4/scaling_max_freq"
+              default="2457600" />
+
+    <resource id="0x0006" name="cpu_max_prime"
+              path="/sys/devices/system/cpu/cpufreq/policy7/scaling_max_freq"
+              default="2496000" />
+
+    <!-- ═══════════════════════════════════════════════
+         GPU FREQUENCY  (Adreno 642L / kgsl-3d0 — Hz)
+         Balanced: default max capped at 700 MHz.
+         Full 812 MHz only unlocked by explicit boost.
+         ═══════════════════════════════════════════════ -->
+
+    <resource id="0x0010" name="gpu_min_freq"
+              path="/sys/class/kgsl/kgsl-3d0/devfreq/min_freq"
+              default="315000000" />
+
+    <!-- Balanced: cap GPU at 700 MHz at rest; saves ~15% GPU power -->
+    <resource id="0x0011" name="gpu_max_freq"
+              path="/sys/class/kgsl/kgsl-3d0/devfreq/max_freq"
+              default="700000000" />
+
+    <resource id="0x0012" name="gpu_pwrlevel"
+              path="/sys/class/kgsl/kgsl-3d0/max_pwrlevel"
+              default="6" />
+
+    <!-- force_clk_on stays 0 by default; only flipped during frame_rescue -->
+    <resource id="0x0013" name="gpu_force_clk"
+              path="/sys/class/kgsl/kgsl-3d0/force_clk_on"
+              default="0" />
+
+    <!-- ═══════════════════════════════════════════════
+         UCLAMP  (cgroup percent scale: 0–100)
+         Balanced: lower uclamp_min so scheduler can
+         use efficiency cores more freely when load is low.
+         ═══════════════════════════════════════════════ -->
+
+    <resource id="0x0014" name="uclamp_top_min"
+              path="/dev/cpuctl/top-app/cpu.uclamp.min"
+              default="0" />
+
+    <resource id="0x0015" name="uclamp_top_max"
+              path="/dev/cpuctl/top-app/cpu.uclamp.max"
+              default="100" />
+
+    <resource id="0x0016" name="uclamp_fg_min"
+              path="/dev/cpuctl/foreground/cpu.uclamp.min"
+              default="0" />
+
+    <resource id="0x0017" name="uclamp_latency_sensitive"
+              path="/dev/cpuctl/top-app/cpu.uclamp.latency_sensitive"
+              default="0" />
+
+    <!-- ═══════════════════════════════════════════════
+         SCHEDUTIL RATE LIMITS
+         Balanced: up_rate_limit = 0 (instant ramp-up on demand)
+                   down_rate_limit = 5000 µs (fast downclock → saves battery)
+         Default was 20000 µs; 5000 µs cuts idle power significantly.
+         ═══════════════════════════════════════════════ -->
+
+    <resource id="0x0018" name="sched_up_rate_little"
+              path="/sys/devices/system/cpu/cpufreq/policy0/schedutil/up_rate_limit_us"
+              default="500" />
+
+    <!-- Balanced: 5000 µs → downclock 4× faster than the "performance" 20000 µs -->
+    <resource id="0x0019" name="sched_down_rate_little"
+              path="/sys/devices/system/cpu/cpufreq/policy0/schedutil/down_rate_limit_us"
+              default="5000" />
+
+    <resource id="0x001b" name="sched_up_rate_big"
+              path="/sys/devices/system/cpu/cpufreq/policy4/schedutil/up_rate_limit_us"
+              default="500" />
+
+    <resource id="0x001c" name="sched_down_rate_big"
+              path="/sys/devices/system/cpu/cpufreq/policy4/schedutil/down_rate_limit_us"
+              default="5000" />
+
+    <resource id="0x001d" name="sched_up_rate_prime"
+              path="/sys/devices/system/cpu/cpufreq/policy7/schedutil/up_rate_limit_us"
+              default="500" />
+
+    <resource id="0x001e" name="sched_down_rate_prime"
+              path="/sys/devices/system/cpu/cpufreq/policy7/schedutil/down_rate_limit_us"
+              default="5000" />
+
+    <!-- ═══════════════════════════════════════════════
+         TASK TURBO  (Qualcomm task boost)
+         Balanced: disabled by default; only enabled
+         inside strong boost hints (launch / frame rescue).
+         ═══════════════════════════════════════════════ -->
+
+    <resource id="0x001a" name="task_turbo"
+              path="/sys/module/task_turbo/parameters/feats"
+              default="0" />
+
+    <!-- ═══════════════════════════════════════════════
+         VM / MEMORY
+         ═══════════════════════════════════════════════ -->
+
+    <resource id="0x0020" name="dirty_writeback"
+              path="/proc/sys/vm/dirty_writeback_centisecs"
+              default="3000" />
+
+    <resource id="0x0021" name="vfs_cache_pressure"
+              path="/proc/sys/vm/vfs_cache_pressure"
+              default="100" />
+
+    <resource id="0x0022" name="dirty_ratio"
+              path="/proc/sys/vm/dirty_ratio"
+              default="20" />
+
+    <resource id="0x0023" name="sched_migration_cost"
+              path="/proc/sys/kernel/sched_migration_cost_ns"
+              default="5000000" />
+
+    <!-- ═══════════════════════════════════════════════
+         QUALCOMM-SPECIFIC (SM7325)
+         ═══════════════════════════════════════════════ -->
+
+    <resource id="0x0030" name="msm_perf_min_freq"
+              path="/sys/module/msm_performance/parameters/cpu_min_freq"
+              default="0:0 4:0 7:0" />
+
+    <!-- stune: remove these two if kernel uses cpuctl (cgroup v2) -->
+    <resource id="0x0031" name="stune_top_boost"
+              path="/dev/stune/top-app/schedtune.boost"
+              default="0" />
+
+    <resource id="0x0032" name="stune_prefer_idle"
+              path="/dev/stune/top-app/schedtune.prefer_idle"
+              default="0" />
+
+</resources>
