@@ -1,3 +1,12 @@
 # Allow system_server to read Fast Charging status
 allow system_server vendor_sysfs_battery_supply:file { getattr open read };
 allow system_server vendor_sysfs_battery_supply:file rw_file_perms;
+
+# anti gravity
+allow system_server cpu_freq_file:file rw_file_perms;
+allow system_server sysfs_kgsl:file rw_file_perms;
+allow system_server cgroup:file rw_file_perms;
+allow system_server sysfs_task_turbo:file rw_file_perms;
+allow system_server proc_dirty:file rw_file_perms;
+allow system_server proc_drop_caches:file rw_file_perms;
+allow system_server proc_sched:file rw_file_perms;
