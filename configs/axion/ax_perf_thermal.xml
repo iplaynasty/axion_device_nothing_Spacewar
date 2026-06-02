@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AxBurstEngine thermal config — Nothing Phone 1 (Spacewar)
+  Profile: Balanced Battery + Balanced Performance
+
+  Balanced strategy: throttle earlier and more aggressively than
+  a pure-performance tune, preventing thermal accumulation that
+  triggers severe/emergency levels.
+
+  cpu_levels: values < 10000 treated as MHz; framework converts to kHz.
+  gpu_levels: MHz for Adreno 642L.
+
+  Thermal levels: 0=NONE  1=LIGHT  2=MODERATE  3=SEVERE  4=CRITICAL  5=EMERGENCY
+-->
+<perf-config>
+    <atmc>
+
+        <!--
+          CPU caps per thermal level: "little,big,prime" in MHz
+          Balanced: start throttling at LIGHT (was only at MODERATE before).
+          This keeps the device in a comfortable temperature band longer.
+
+          Compared to a max-perf tune:
+            level_1: -268/-276/-309 MHz earlier throttle
+            level_2: -327/-499/-499 MHz earlier throttle
+        -->
+        <cpu_levels
+            level_0="1804,2457,2496"
+            level_1="1267,2188,2188"
+            level_2="940,1382,1574"
+            level_3="576,940,940"
+            level_4="300,576,576"
+            level_5="300,400,400" />
+
+        <!--
+          GPU caps per thermal level (Adreno 642L) in MHz
+          Balanced: cap GPU at 700 MHz normally (level_0); 812 MHz
+          is only achievable via explicit game-mode boost at level_0.
+        -->
+        <gpu_levels
+            level_0="700"
+            level_1="587"
+            level_2="490"
+            level_3="315"
+            level_4="200"
+            level_5="150" />
+
+        <!--
+          Thermal scenes: cancel expensive boosts under heat pressure.
+          Balanced: cancel game_mode at MODERATE (level_2) instead of SEVERE.
+        -->
+        <scenes>
+            <scene name="game_thermal_gate_moderate"
+                   thermal_level="2" opcode="8" action="cancel" />
+            <!-- Scale back launch boost at SEVERE — fall back to light -->
+            <scene name="launch_thermal_gate_severe"
+                   thermal_level="3" opcode="1" action="cancel" />
+        </scenes>
+
+        <!--
+          Per-app overrides
+        -->
+        <apps>
+            <app package="com.android.systemui" min_thermal_level="3" />
+            <app package="com.nothing.camera"   min_thermal_level="2" />
+        </apps>
+
+        <!--
+          FPS caps per thermal level
+          Balanced: drop to 90 Hz at LIGHT to cut compositor load early.
+        -->
+        <buffer_rates
+            level_0="120"
+            level_1="90"
+            level_2="60"
+            level_3="60"
+            level_4="60"
+            level_5="60" />
+
+        <!--
+          Boost scenario thermal gates
+        -->
+        <boost_scenarios>
+            <scenario name="launch"    max_thermal_level="3" />
+            <scenario name="scroll"    max_thermal_level="4" />
+            <scenario name="game_mode" max_thermal_level="1" />
+        </boost_scenarios>
+
+    </atmc>
+</perf-config>
