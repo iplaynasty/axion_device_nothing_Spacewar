@@ -451,3 +451,10 @@ PRODUCT_PACKAGES += \
 PRODUCT_SYSTEM_PROPERTIES += \
     ro.build.tags=release-keys \
     ro.build.keys=release-keys
+
+# ─── AxBurstEngine XML copy-files ─────────────────────────────────────────
+PRODUCT_COPY_FILES += \
+    device/nothing/Spacewar/configs/axion/ax_perf_resources.xml:$(TARGET_COPY_OUT_VENDOR)/etc/ax_perf_resources.xml \
+    device/nothing/Spacewar/configs/axion/ax_perf_boosts.xml:$(TARGET_COPY_OUT_VENDOR)/etc/ax_perf_boosts.xml \
+    device/nothing/Spacewar/configs/axion/ax_perf_thermal.xml:$(TARGET_COPY_OUT_VENDOR)/etc/ax_perf_thermal.xml \
+    device/nothing/Spacewar/configs/axion/ax_perf_threads.xml:$(TARGET_COPY_OUT_VENDOR)/etc/ax_perf_threads.xml
