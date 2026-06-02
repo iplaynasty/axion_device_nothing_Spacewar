@@ -27,3 +27,9 @@ genfscon sysfs /devices/platform/soc/984000.i2c/i2c-0/0-0020/wakeup             
 genfscon sysfs /devices/platform/soc/a84000.i2c/i2c-2/2-0028/wakeup             u:object_r:sysfs_wakeup:s0
 genfscon sysfs /devices/platform/soc/a94000.spi/spi_master/spi0/spi0.0/wakeup   u:object_r:sysfs_wakeup:s0
 genfscon sysfs /devices/platform/soc/a98000.spi/spi_master/spi1/spi1.0/wakeup   u:object_r:sysfs_wakeup:s0
+
+# axion
+genfscon proc /sys/vm/dirty_writeback_centisecs   u:object_r:proc_dirty:s0
+genfscon proc /sys/vm/vfs_cache_pressure          u:object_r:proc_drop_caches:s0
+genfscon proc /sys/vm/dirty_ratio                 u:object_r:proc_dirty:s0
+genfscon proc /sys/kernel/sched_migration_cost_ns u:object_r:proc_sched:s0
