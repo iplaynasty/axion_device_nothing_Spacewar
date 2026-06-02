@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AxBurstEngine boost definitions — Nothing Phone 1 (Spacewar)
+  Profile: Balanced Battery + Balanced Performance
+
+  Design choices vs. a "Max Performance" tune:
+  ┌─────────────────────┬──────────────────┬──────────────────────┐
+  │ Parameter           │ Max Perf         │ Balanced (this file) │
+  ├─────────────────────┼──────────────────┼──────────────────────┤
+  │ launch cpu_min_big  │ 1881600 kHz      │ 1267200 kHz (−33%)   │
+  │ launch timeout      │ 3000 ms          │ 1800 ms  (−40%)      │
+  │ scroll cpu_min_big  │ 940800 kHz       │ 691200 kHz (−27%)    │
+  │ scroll gpu_min      │ 400 MHz          │ 315 MHz  (−21%)      │
+  │ game gpu_min        │ 587 MHz          │ 400 MHz  (−32%)      │
+  │ game gpu_max        │ 812 MHz          │ 700 MHz  (−14%)      │
+  │ task_turbo on boost │ yes              │ launch + rescue only │
+  └─────────────────────┴──────────────────┴──────────────────────┘
+
+  CPU freq values : kHz  (matching scaling_min_freq sysfs)
+  GPU freq values : Hz   (matching kgsl devfreq)
+  uclamp values  : 0-100 (cgroup percent scale)
+-->
+<boosts>
+
+    <!-- ═══════════════════════════════════════════════
+         REUSABLE BOOST-RESOURCE GROUPS
+         ═══════════════════════════════════════════════ -->
+
+    <!--
+      LIGHT boost — scroll, touch, shade, rotation, warm-launch
+      Goal: just enough to keep 120 Hz rendering on big cores;
+            back off quickly when the gesture ends.
+    -->
+    <boost-resource id="0x01a0" name="latency_boost_light">
+        <!-- Little: lift to 576 MHz — above idle but far from max -->
+        <set resource="cpu_min_little"          id="0x0001" value="576000" />
+        <!-- Big: lift to 768 MHz — schedutil handles the rest -->
+        <set resource="cpu_min_big"             id="0x0002" value="768000" />
+        <!-- Prime: same modest floor -->
+        <set resource="cpu_min_prime"           id="0x0003" value="768000" />
+        <!-- uclamp 10%: nudge toward big cores without locking there -->
+        <set resource="uclamp_top_min"          id="0x0014" value="10" />
+        <set resource="uclamp_latency_sensitive" id="0x0017" value="1" />
+        <!-- Zero up_rate so freq responds instantly to a burst of load -->
+        <set resource="sched_up_rate_little"    id="0x0018" value="0" />
+        <set resource="sched_up_rate_big"       id="0x001b" value="0" />
+        <!-- task_turbo OFF in light mode to save power -->
+        <set resource="task_turbo"              id="0x001a" value="0" />
+    </boost-resource>
+
+    <!--
+      MODERATE boost — cold app launch, sustained render
+      Goal: meaningful responsiveness without burning all thermal headroom.
+    -->
+    <boost-resource id="0x01a1" name="latency_boost_moderate">
+        <!-- Little: ~70% of max -->
+        <set resource="cpu_min_little"          id="0x0001" value="940800" />
+        <!-- Big: ~55% of max -->
+        <set resource="cpu_min_big"             id="0x0002" value="1267200" />
+        <!-- Prime: ~55% of max -->
+        <set resource="cpu_min_prime"           id="0x0003" value="1267200" />
+        <!-- uclamp 25%: prefer big cores for visible work -->
+        <set resource="uclamp_top_min"          id="0x0014" value="25" />
+        <set resource="uclamp_fg_min"           id="0x0016" value="10" />
+        <set resource="uclamp_latency_sensitive" id="0x0017" value="1" />
+        <set resource="sched_up_rate_little"    id="0x0018" value="0" />
+        <set resource="sched_up_rate_big"       id="0x001b" value="0" />
+        <set resource="sched_up_rate_prime"     id="0x001d" value="0" />
+        <!-- task_turbo ON only briefly for launch responsiveness -->
+        <set resource="task_turbo"              id="0x001a" value="1" />
+        <!-- GPU: modest lift to 400 MHz during launch rendering -->
+        <set resource="gpu_min_freq"            id="0x0010" value="400000000" />
+    </boost-resource>
+
+    <!--
+      SUSTAINED balanced — game mode / benchmarks
+      Goal: smooth gameplay without pinning at max freq.
+             Let schedutil headroom manage heat + battery.
+    -->
+    <boost-resource id="0x01a2" name="perf_balanced">
+        <!-- Little: ~60% of max — background tasks stay on little -->
+        <set resource="cpu_min_little"          id="0x0001" value="1036800" />
+        <!-- Big: ~65% of max — main game thread headroom -->
+        <set resource="cpu_min_big"             id="0x0002" value="1574400" />
+        <!-- Prime: ~70% of max -->
+        <set resource="cpu_min_prime"           id="0x0003" value="1766400" />
+        <!--
+          No cpu_max override: thermal XML will cap if device heats up.
+          Letting the scheduler scale up naturally saves battery
+          versus pinning at 2.4/2.5 GHz unconditionally.
+        -->
+        <!-- uclamp 50%: game threads comfortably on big cores -->
+        <set resource="uclamp_top_min"          id="0x0014" value="50" />
+        <set resource="uclamp_fg_min"           id="0x0016" value="20" />
+        <set resource="uclamp_latency_sensitive" id="0x0017" value="1" />
+        <!-- GPU: 400 MHz floor, 700 MHz ceiling (saves vs. 812 MHz) -->
+        <set resource="gpu_min_freq"            id="0x0010" value="400000000" />
+        <set resource="gpu_max_freq"            id="0x0011" value="700000000" />
+        <!-- force_clk OFF: let GPU idle between frames -->
+        <set resource="gpu_force_clk"           id="0x0013" value="0" />
+        <set resource="task_turbo"              id="0x001a" value="0" />
+        <!-- Slightly tighten writeback during sustained load -->
+        <set resource="dirty_writeback"         id="0x0020" value="1500" />
+        <set resource="vfs_cache_pressure"      id="0x0021" value="75" />
+    </boost-resource>
+
+    <!--
+      SCROLL boost — 120 Hz fling
+      Goal: minimum CPU/GPU to sustain smooth scrolling; release fast.
+    -->
+    <boost-resource id="0x01a3" name="scroll_balanced">
+        <set resource="cpu_min_little"          id="0x0001" value="403200" />
+        <set resource="cpu_min_big"             id="0x0002" value="691200" />
+        <set resource="cpu_min_prime"           id="0x0003" value="691200" />
+        <set resource="uclamp_top_min"          id="0x0014" value="10" />
+        <set resource="uclamp_latency_sensitive" id="0x0017" value="1" />
+        <set resource="sched_up_rate_little"    id="0x0018" value="0" />
+        <set resource="sched_up_rate_big"       id="0x001b" value="0" />
+        <!-- GPU: keep at 315 MHz during scroll — compositor is lightweight -->
+        <set resource="gpu_min_freq"            id="0x0010" value="315000000" />
+        <set resource="task_turbo"              id="0x001a" value="0" />
+    </boost-resource>
+
+    <!-- ═══════════════════════════════════════════════
+         BOOST HINTS (opcodes → AxBoostFwk)
+         Timeouts reduced vs. max-perf to release resources faster.
+         ═══════════════════════════════════════════════ -->
+
+    <!--
+      opcode 1 = first_launch (cold start)
+      Balanced: 1800 ms (was 3000 ms). Enough for the app to draw
+      its first frame; shorter saves ~40% boost energy per launch.
+    -->
+    <boost opcode="1" timeout_ms="1800" name="first_launch"
+           uc="SvpPolicy" dc="MaxPerformance">
+        <set resource="latency_boost_moderate" id="0x01a1" />
+    </boost>
+
+    <!--
+      opcode 2 = warm_launch (cached resume)
+      Balanced: 900 ms (was 1500 ms). App is already in memory.
+    -->
+    <boost opcode="2" timeout_ms="900" name="warm_launch"
+           uc="SvpPolicy" dc="MaxPerformance">
+        <set resource="latency_boost_light" id="0x01a0" />
+    </boost>
+
+    <!--
+      opcode 3 = scroll / fling
+      Balanced: 120 ms (was 200 ms). Release as soon as finger lifts.
+    -->
+    <boost opcode="3" timeout_ms="120" name="scroll"
+           uc="SvpPolicy" dc="MaxPerformance">
+        <set resource="scroll_balanced" id="0x01a3" />
+    </boost>
+
+    <!--
+      opcode 4 = touch / tap
+      Balanced: 60 ms (was 100 ms). Bare minimum for tap animation.
+    -->
+    <boost opcode="4" timeout_ms="60" name="touch"
+           uc="SvpPolicy" dc="MaxPerformance">
+        <set resource="cpu_min_big"             id="0x0002" value="576000" />
+        <set resource="cpu_min_prime"           id="0x0003" value="576000" />
+        <set resource="uclamp_latency_sensitive" id="0x0017" value="1" />
+    </boost>
+
+    <!--
+      opcode 5 = frame_rescue
+      Keep timeout short (32 ms = 1 frame @ 30 fps) but boost strong.
+      This is reactive — battery cost is minimal because it fires rarely.
+    -->
+    <boost opcode="5" timeout_ms="32" name="frame_rescue"
+           uc="SvpPolicy" dc="MaxPerformance">
+        <set resource="latency_boost_moderate" id="0x01a1" />
+        <!-- GPU force_clk only for this single frame window -->
+        <set resource="gpu_force_clk"          id="0x0013" value="1" />
+    </boost>
+
+    <!--
+      opcode 6 = rotation
+      Balanced: 300 ms (was 500 ms).
+    -->
+    <boost opcode="6" timeout_ms="300" name="rotation"
+           uc="SvpPolicy" dc="MaxPerformance">
+        <set resource="latency_boost_light" id="0x01a0" />
+    </boost>
+
+    <!--
+      opcode 7 = shade_pull (notification panel)
+      Balanced: 150 ms (was 300 ms).
+    -->
+    <boost opcode="7" timeout_ms="150" name="shade_pull"
+           uc="SvpPolicy" dc="MaxPerformance">
+        <set resource="latency_boost_light" id="0x01a0" />
+    </boost>
+
+    <!--
+      opcode 8 = game_mode
+      Balanced: held until release (timeout_ms=0) but at moderate freq floors.
+      No cpu_max pinning — thermal takes over if device gets warm.
+    -->
+    <boost opcode="8" timeout_ms="0" name="game_mode"
+           uc="MaxPerformance" dc="MaxPerformance">
+        <set resource="perf_balanced" id="0x01a2" />
+    </boost>
+
+    <!--
+      opcode 9 = dexopt / package install
+      Balanced: moderate big core floor, 6000 ms (was 10000 ms).
+    -->
+    <boost opcode="9" timeout_ms="6000" name="dexopt"
+           uc="SCHED_SP_BACKGROUND" dc="MaxPerformance">
+        <set resource="cpu_min_big"   id="0x0002" value="768000" />
+        <set resource="cpu_min_prime" id="0x0003" value="768000" />
+    </boost>
+
+    <!--
+      opcode 10 = render_thread
+      Balanced: 300 ms (was 500 ms), light boost.
+    -->
+    <boost opcode="10" timeout_ms="300" name="render_thread"
+           uc="SvpPolicy" dc="MaxPerformance">
+        <set resource="scroll_balanced" id="0x01a3" />
+        <set resource="gpu_min_freq"    id="0x0010" value="315000000" />
+    </boost>
+
+    <!--
+      opcode 11 = audio latency
+      Balanced: held until release, minimal CPU floor.
+    -->
+    <boost opcode="11" timeout_ms="0" name="audio_latency"
+           uc="SCHED_SP_RT_APP" dc="MaxPerformance">
+        <set resource="cpu_min_little"          id="0x0001" value="403200" />
+        <set resource="cpu_min_big"             id="0x0002" value="576000" />
+        <set resource="uclamp_latency_sensitive" id="0x0017" value="1" />
+    </boost>
+
+</boosts>
