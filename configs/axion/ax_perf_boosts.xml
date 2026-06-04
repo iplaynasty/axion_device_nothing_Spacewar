@@ -27,7 +27,7 @@
          ═══════════════════════════════════════════════ -->
 
     <!--
-      LIGHT boost — scroll, touch, shade, rotation, warm-launch
+      LIGHT boost — scroll, touch, rotation, warm-launch
       Goal: just enough to keep 120 Hz rendering on big cores;
             back off quickly when the gesture ends.
     -->
@@ -45,6 +45,32 @@
         <set resource="sched_up_rate_little"    id="0x0018" value="0" />
         <set resource="sched_up_rate_big"       id="0x001b" value="0" />
         <!-- task_turbo OFF in light mode to save power -->
+        <set resource="task_turbo"              id="0x001a" value="0" />
+    </boost-resource>
+
+    <!--
+      SHADE boost — QS panel pull (opcode 7)
+      QS jitter fix: separate from latency_boost_light because QS needs:
+        1. Higher cpu_min so SurfaceFlinger blur compositor stays on big cores
+        2. GPU floor at 400 MHz for the BackgroundBlur layer render
+        3. Zero up_rate so SF/SystemUI get freq instantly on first frame
+      Without a GPU floor, kgsl idles at 315 MHz between frames and the
+      blur layer render spills into the next vsync → visible jitter.
+    -->
+    <boost-resource id="0x01a4" name="shade_boost">
+        <set resource="cpu_min_little"          id="0x0001" value="576000" />
+        <!-- Big: 1036800 = ~42% of max; enough for SF blur composite at 120 Hz -->
+        <set resource="cpu_min_big"             id="0x0002" value="1036800" />
+        <set resource="cpu_min_prime"           id="0x0003" value="1036800" />
+        <!-- uclamp 20%: ensure SystemUI + SF stay scheduled on big cores -->
+        <set resource="uclamp_top_min"          id="0x0014" value="20" />
+        <set resource="uclamp_latency_sensitive" id="0x0017" value="1" />
+        <!-- Instant ramp so first QS frame gets full freq immediately -->
+        <set resource="sched_up_rate_little"    id="0x0018" value="0" />
+        <set resource="sched_up_rate_big"       id="0x001b" value="0" />
+        <set resource="sched_up_rate_prime"     id="0x001d" value="0" />
+        <!-- GPU floor: 400 MHz keeps blur layer rendering within vsync budget -->
+        <set resource="gpu_min_freq"            id="0x0010" value="400000000" />
         <set resource="task_turbo"              id="0x001a" value="0" />
     </boost-resource>
 
@@ -187,12 +213,14 @@
     </boost>
 
     <!--
-      opcode 7 = shade_pull (notification panel)
-      Balanced: 150 ms (was 300 ms).
+      opcode 7 = shade_pull (QS panel / notification shade)
+      QS jitter fix: use dedicated shade_boost (not latency_boost_light).
+      Timeout 300 ms covers the full QS open animation at 120 Hz (~36 frames).
+      shade_boost provides cpu_min_big=1036800 + gpu_min=400 MHz for blur.
     -->
-    <boost opcode="7" timeout_ms="150" name="shade_pull"
+    <boost opcode="7" timeout_ms="300" name="shade_pull"
            uc="SvpPolicy" dc="MaxPerformance">
-        <set resource="latency_boost_light" id="0x01a0" />
+        <set resource="shade_boost" id="0x01a4" />
     </boost>
 
     <!--
