@@ -7,12 +7,13 @@
     0    = fully unconstrained (scheduler chooses freely)
     1024 = always maximum utilization
 
-  Balanced strategy vs. max-perf:
-  • render:             512 → 384  (scheduler can use big-A55 when headroom exists)
-  • surfaceflinger_main: 256 → 192
-  • ui thread:          128 →  64  (mostly idle, let A55 handle it)
-  • input_dispatcher:   200 → 128  (still snappy, but lighter)
-  • audio:              128 →  64  (audio driver is event-driven, not load-heavy)
+  v3 changes (battery++ + QS jitter fix):
+  • render:              512 → 384  (A55 OK for light frames, big core preferred)
+  • surfaceflinger_main: 192 → 280  [QS fix] SF must be on big core every vsync
+  • surfaceflinger_render:256 → 360  [QS fix] GPU dispatch thread, jitter-critical
+  • ui thread:            64 → 128  [QS fix] SystemUI tile inflation during open
+  • input_dispatcher:    200 → 128  (still snappy)
+  • audio:               128 →  64  (event-driven, low load)
 
   These lower uclamp_min values mean:
   ✓ Threads still scale up to big cores under actual load
@@ -21,26 +22,37 @@
 <threads>
 
     <!--
-      Render thread: reduced from 512 to 384.
-      Still prefers big cores but allows A55 during light frames (menus, etc.).
+      Render thread: 384 — allows A55 during light frames but prefers big cores.
     -->
     <role name="render"
           uclamp_min="384"
           uclamp_max="1024" />
 
-    <!-- SurfaceFlinger main: slightly reduced, compositor is often idle -->
+    <!--
+      SurfaceFlinger main: lifted 192 → 280.
+      QS jitter fix: SF main must be scheduled on a big core every vsync during
+      QS animation; 192 was too low and allowed the A55 to pick it up.
+    -->
     <role name="surfaceflinger_main"
-          uclamp_min="192"
+          uclamp_min="280"
           uclamp_max="1024" />
 
-    <!-- SF render engine: moderate — GPU composition is bursty, not sustained -->
+    <!--
+      SF render engine: lifted 256 → 360.
+      QS jitter fix: this thread does the actual BackgroundBlur GPU dispatch;
+      if it slips off the big core even briefly, blur rendering spills a frame.
+    -->
     <role name="surfaceflinger_render"
-          uclamp_min="256"
+          uclamp_min="360"
           uclamp_max="1024" />
 
-    <!-- App UI thread: low default; boost hints handle heavy moments -->
+    <!--
+      App UI thread: lifted 64 → 128.
+      QS jitter fix: SystemUI's main thread inflates QS tiles during the open
+      animation; at uclamp_min=64 it could land on A55 mid-animation.
+    -->
     <role name="ui"
-          uclamp_min="64"
+          uclamp_min="128"
           uclamp_max="1024" />
 
     <!-- Input dispatcher: keeps touch snappy; 128 is enough to stay on big cores -->
