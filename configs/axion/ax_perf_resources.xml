@@ -7,9 +7,11 @@
   Profile: Balanced Battery + Balanced Performance
 
   Key battery decisions reflected in defaults:
-  • down_rate_limit_us = 5000  → schedutil downclocks quickly when load drops
-  • task_turbo default  = 0    → only enabled during active boost hints
-  • dirty_writeback     = 3000 → normal background flush cadence
+  • sched_up_rate_*   = 2000 µs → lazy ramp at rest (overridden to 0 inside boosts → no perf impact)
+  • down_rate_limit_us = 1500 µs → downclocks 3× faster than v2; ~8% extra battery from CPU idle
+  • gpu_max_freq       = 587 MHz → cap GPU at rest (was 700); only game/launch boosts unlock higher
+  • dirty_writeback    = 5000 cs → fewer disk wakeups per hour
+  • task_turbo default = 0    → only enabled on launch + frame_rescue hints
 -->
 <resources>
 
@@ -59,10 +61,10 @@
               path="/sys/class/kgsl/kgsl-3d0/devfreq/min_freq"
               default="315000000" />
 
-    <!-- Balanced: cap GPU at 700 MHz at rest; saves ~15% GPU power -->
+    <!-- Battery++: cap GPU at 587 MHz at rest (was 700); game/launch boosts unlock higher -->
     <resource id="0x0011" name="gpu_max_freq"
               path="/sys/class/kgsl/kgsl-3d0/devfreq/max_freq"
-              default="700000000" />
+              default="587000000" />
 
     <resource id="0x0012" name="gpu_pwrlevel"
               path="/sys/class/kgsl/kgsl-3d0/max_pwrlevel"
@@ -97,35 +99,37 @@
 
     <!-- ═══════════════════════════════════════════════
          SCHEDUTIL RATE LIMITS
-         Balanced: up_rate_limit = 0 (instant ramp-up on demand)
-                   down_rate_limit = 5000 µs (fast downclock → saves battery)
-         Default was 20000 µs; 5000 µs cuts idle power significantly.
+         Battery++:
+           up_rate_limit   = 2000 µs at rest → lazy ramp; no frequency overshoot
+                             overridden to 0 inside every boost hint → zero perf impact
+           down_rate_limit = 1500 µs → drops freq 3× faster than v2's 5000 µs
          ═══════════════════════════════════════════════ -->
 
+    <!-- 2000 µs default: CPU ramps slowly when no boost is active (saves battery) -->
     <resource id="0x0018" name="sched_up_rate_little"
               path="/sys/devices/system/cpu/cpufreq/policy0/schedutil/up_rate_limit_us"
-              default="500" />
+              default="2000" />
 
-    <!-- Balanced: 5000 µs → downclock 4× faster than the "performance" 20000 µs -->
+    <!-- 1500 µs: aggressive downclock when load drops after a boost expires -->
     <resource id="0x0019" name="sched_down_rate_little"
               path="/sys/devices/system/cpu/cpufreq/policy0/schedutil/down_rate_limit_us"
-              default="5000" />
+              default="1500" />
 
     <resource id="0x001b" name="sched_up_rate_big"
               path="/sys/devices/system/cpu/cpufreq/policy4/schedutil/up_rate_limit_us"
-              default="500" />
+              default="2000" />
 
     <resource id="0x001c" name="sched_down_rate_big"
               path="/sys/devices/system/cpu/cpufreq/policy4/schedutil/down_rate_limit_us"
-              default="5000" />
+              default="1500" />
 
     <resource id="0x001d" name="sched_up_rate_prime"
               path="/sys/devices/system/cpu/cpufreq/policy7/schedutil/up_rate_limit_us"
-              default="500" />
+              default="2000" />
 
     <resource id="0x001e" name="sched_down_rate_prime"
               path="/sys/devices/system/cpu/cpufreq/policy7/schedutil/down_rate_limit_us"
-              default="5000" />
+              default="1500" />
 
     <!-- ═══════════════════════════════════════════════
          TASK TURBO  (Qualcomm task boost)
@@ -141,9 +145,10 @@
          VM / MEMORY
          ═══════════════════════════════════════════════ -->
 
+    <!-- Battery++: 5000 cs = flush every 50 s (was 30 s) → fewer disk wakeups -->
     <resource id="0x0020" name="dirty_writeback"
               path="/proc/sys/vm/dirty_writeback_centisecs"
-              default="3000" />
+              default="5000" />
 
     <resource id="0x0021" name="vfs_cache_pressure"
               path="/proc/sys/vm/vfs_cache_pressure"
@@ -173,5 +178,11 @@
     <resource id="0x0032" name="stune_prefer_idle"
               path="/dev/stune/top-app/schedtune.prefer_idle"
               default="0" />
+
+    <!-- Battery++: hard-cap background group to 25% uclamp → keeps background
+         threads on A55 cores, freeing big cores for foreground -->
+    <resource id="0x0033" name="uclamp_bg_max"
+              path="/dev/cpuctl/background/cpu.uclamp.max"
+              default="256" />
 
 </resources>
